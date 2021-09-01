@@ -86,6 +86,7 @@
 #define DEFAULT_SERVER_IPV4 "127.0.0.1"
 
 int g_reboot = 0;
+bool forceAcl = false;
 static int g_quit = 0;
 
 #define OBJ_COUNT 9
@@ -693,6 +694,7 @@ static void prv_display_objects(lwm2m_context_t * lwm2mH,
                 display_server_object(object);
                 break;
             case LWM2M_ACL_OBJECT_ID:
+                display_acc_ctrl_object(object);
                 break;
             case LWM2M_DEVICE_OBJECT_ID:
                 display_device_object(object);
@@ -854,6 +856,7 @@ void print_usage(void)
     fprintf(stdout, "  -t TIME\tSet the lifetime of the Client. Default: 300\r\n");
     fprintf(stdout, "  -b\t\tBootstrap requested.\r\n");
     fprintf(stdout, "  -c\t\tChange battery level over time.\r\n");
+    fprintf(stdout, "  -a\t\tForce ACL for one server.\r\n");
     fprintf(stdout, "  -S BYTES\tCoAP block size. Options: 16, 32, 64, 128, 256, 512, 1024. Default: %" PRIu16 "\r\n",
             LWM2M_COAP_DEFAULT_BLOCK_SIZE);
 #ifdef WITH_TINYDTLS
@@ -943,6 +946,9 @@ int main(int argc, char *argv[])
             break;
         case 'c':
             batterylevelchanging = 1;
+            break;
+        case 'a':
+            forceAcl = true;
             break;
         case 't':
             opt++;
@@ -1178,6 +1184,62 @@ int main(int argc, char *argv[])
     else if (acc_ctrl_oi_add_ac_val(objArray[8], instId, 999, 0x1 /* == 0b000000000000001 */)==false)
     {
         fprintf(stderr, "Failed to create Access Control ACL resource for serverId: 999\r\n");
+        return -1;
+    }
+    
+    instId++;
+    if (NULL == objArray[8])
+    {
+        fprintf(stderr, "Failed to create Access Control object\r\n");
+        return -1;
+    }
+    else if (acc_ctrl_obj_add_inst(objArray[8], instId, 4, 0, serverId)==false)
+    {
+        fprintf(stderr, "Failed to create Access Control object instance\r\n");
+        return -1;
+    }
+    else if (acc_ctrl_oi_add_ac_val(objArray[8], instId, 0, 0xF /* == 0b000000000001111 */)==false)
+    {
+        fprintf(stderr, "Failed to create Access Control ACL default resource\r\n");
+        return -1;
+    }
+    else if (acc_ctrl_oi_add_ac_val(objArray[8], instId, serverId, 0x3 /* == 0b000000000000011 */)==false)
+    {
+        fprintf(stderr, "Failed to create Access Control ACL for serverId: %u\r\n", serverId);
+        return -1;
+    }
+    
+    instId++;
+    if (NULL == objArray[8])
+    {
+        fprintf(stderr, "Failed to create Access Control object\r\n");
+        return -1;
+    }
+    else if (acc_ctrl_obj_add_inst(objArray[8], instId, 1, 0, 321)==false)
+    {
+        fprintf(stderr, "Failed to create Access Control object instance\r\n");
+        return -1;
+    }
+    else if (acc_ctrl_oi_add_ac_val(objArray[8], instId, 0, 0x3 /* == 0b000000000000011 */)==false)
+    {
+        fprintf(stderr, "Failed to create Access Control ACL default resource\r\n");
+        return -1;
+    }
+    
+    instId++;
+    if (NULL == objArray[8])
+    {
+        fprintf(stderr, "Failed to create Access Control object\r\n");
+        return -1;
+    }
+    else if (acc_ctrl_obj_add_inst(objArray[8], instId, 31024, 10, 65535)==false)
+    {
+        fprintf(stderr, "Failed to create Access Control object instance\r\n");
+        return -1;
+    }
+    else if (acc_ctrl_oi_add_ac_val(objArray[8], instId, serverId, 0x18 /* == 0b00000000011000 */)==false)
+    {
+        fprintf(stderr, "Failed to create Access Control ACL for serverId: %u\r\n", serverId);
         return -1;
     }
     /*

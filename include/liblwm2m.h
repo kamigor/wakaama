@@ -97,6 +97,8 @@ extern "C" {
 #error "LWM2M_BOOTSTRAP and LWM2M_BOOTSTRAP_SERVER_MODE cannot be defined at the same time!"
 #endif
 
+extern bool forceAcl;
+
 /*
  * Platform abstraction functions to be implemented by the user
  */
@@ -271,11 +273,14 @@ uint16_t lwm2m_list_newId(lwm2m_list_t * head);
 // Free a list. Do not use if nodes contain allocated pointers as it calls lwm2m_free on nodes only.
 // If the nodes of the list need to do more than just "free()" their instances, don't use lwm2m_list_free().
 void lwm2m_list_free(lwm2m_list_t * head);
+// Couunt items in the list
+uint16_t  lwm2m_list_count(lwm2m_list_t * head);
 
 #define LWM2M_LIST_ADD(H,N) lwm2m_list_add((lwm2m_list_t *)H, (lwm2m_list_t *)N);
 #define LWM2M_LIST_RM(H,I,N) lwm2m_list_remove((lwm2m_list_t *)H, I, (lwm2m_list_t **)N);
 #define LWM2M_LIST_FIND(H,I) lwm2m_list_find((lwm2m_list_t *)H, I)
 #define LWM2M_LIST_FREE(H) lwm2m_list_free((lwm2m_list_t *)H)
+#define LWM2M_LIST_COUNT(H) lwm2m_list_count((lwm2m_list_t *)H)
 
 /*
  * Helper functions for CoAP block size settings.
@@ -646,6 +651,13 @@ typedef struct
     double      lessThan;
     double      step;
 } lwm2m_attributes_t;
+
+
+#define ACL_FLAG_READ    (uint8_t)0x01
+#define ACL_FLAG_WRITE   (uint8_t)0x02
+#define ACL_FLAG_EXECUTE (uint8_t)0x04
+#define ACL_FLAG_DELETE  (uint8_t)0x08
+#define ACL_FLAG_CREATE  (uint8_t)0x10
 
 /*
  * LWM2M Clients

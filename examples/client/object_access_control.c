@@ -617,3 +617,148 @@ bool acc_ctrl_oi_add_ac_val (lwm2m_object_t* accCtrlObjP, uint16_t instId,
 
     return prv_add_ac_val (accCtrlOiP, acResId, acValue);
 }
+
+void display_acc_ctrl_object(lwm2m_object_t * accCtrlObjP)
+{
+    fprintf(stdout, "  /%u: ACL object, instances:\r\n", accCtrlObjP->objID);
+    acc_ctrl_oi_t * aclInstance = (acc_ctrl_oi_t *)accCtrlObjP->instanceList;
+    acc_ctrl_ri_t * aclAclInstance;
+    
+    while (aclInstance != NULL)
+    {
+        
+        fprintf(stdout, "    /%u/%u: object: %u, instance: %u, owner: %u, acl: [", 
+            accCtrlObjP->objID, aclInstance->objInstId, 
+            aclInstance->objectId, aclInstance->objectInstId, aclInstance->accCtrlOwner);
+        
+        aclAclInstance = (acc_ctrl_ri_t *)aclInstance->accCtrlValList;
+        while (aclAclInstance != NULL)
+        {
+            fprintf(stdout, " shortId: %u -> rights: 0x%X ", aclAclInstance->resInstId, aclAclInstance->accCtrlValue);
+            aclAclInstance = (acc_ctrl_ri_t *)aclAclInstance->next; /* ask about (acc_ctrl_ri_t *)*/
+        }
+
+        fprintf(stdout, "]\r\n");
+        aclInstance = (acc_ctrl_oi_t *)aclInstance->next;
+    }
+}
+
+static bool prv_check_acc_ctrl_right(lwm2m_object_t* accCtrlObjP, uint16_t objectId, uint16_t objectInstId, 
+                                        uint16_t serverId, uint8_t acl_operation)
+{
+    acc_ctrl_oi_t * aclInstance = (acc_ctrl_oi_t *)accCtrlObjP->instanceList;
+    acc_ctrl_ri_t * aclAclInstance;
+
+    bool ret = false;
+    bool is_default_right = false;
+
+    while (aclInstance != NULL)
+    {
+
+        /* 8.2.1. Obtaining Access Right. For CREATE operation... */
+        if (acl_operation & ACL_FLAG_EXECUTE)
+        {
+            if ((aclInstance->objectId == objectId) && (aclInstance->objectInstId == 65535))
+            {
+
+                aclAclInstance = (acc_ctrl_ri_t *)aclInstance->accCtrlValList;
+                while (aclAclInstance != NULL)
+                {
+                    /* Check the operation right in case ACL resource instance contains the server id record */
+                    if ((aclAclInstance->resInstId == serverId) && (aclAclInstance->accCtrlValue & acl_operation))
+                    {
+                        fprintf(stdout, "\t\t\t\t debug: right 0x%X for serverId %u found \r\n", acl_operation, serverId);
+                        ret = true;
+                        break;
+                    }
+
+                    aclAclInstance = (acc_ctrl_ri_t *)aclAclInstance->next;
+                }
+
+                if (ret)
+                {
+                    break;
+                }            
+            }
+        }
+
+        /* 8.2.1. Obtaining Access Right. For operations, except the "Create" operation... */
+        if ((aclInstance->objectId == objectId) && (aclInstance->objectInstId == objectInstId))
+        {
+
+            aclAclInstance = (acc_ctrl_ri_t *)aclInstance->accCtrlValList;
+            while (aclAclInstance != NULL)
+            {
+                /* Check the operation right in case ACL resource instance contains the server id record */
+                if ((aclAclInstance->resInstId == serverId) && (aclAclInstance->accCtrlValue & acl_operation))
+                {
+                    fprintf(stdout, "\t\t\t\t debug: right 0x%X for serverId %u found \r\n", acl_operation, serverId);
+                    ret = true;
+                    break;
+                }
+                /* Check the operation right in case ACL resource instance contains '0' server id record */
+                if ((aclAclInstance->resInstId == 0) && (aclAclInstance->accCtrlValue & acl_operation))
+                {
+                    is_default_right = true;
+                }
+
+                aclAclInstance = (acc_ctrl_ri_t *)aclAclInstance->next;
+            }
+
+            if (!ret)
+            {
+
+                /* Check the owner resource contains the server id if no ACL resource instance record */
+                if (aclInstance->accCtrlOwner == serverId) // add after debugging - || is_default_right)
+                {
+                    fprintf(stdout, "\t\t\t\t debug: accCtrlOwner %u for serverId %u found\r\n", aclInstance->accCtrlOwner, serverId);
+                    ret = true;
+                    break;
+                }
+
+                /* Apply the default right if found */
+                else if ((!ret) && is_default_right)
+                {
+                    fprintf(stdout, "\t\t\t\t debug: default right 0x%X found\r\n", acl_operation);
+                    ret = true;
+                    break;
+                }           
+
+           }
+        }
+      
+        aclInstance = (acc_ctrl_oi_t *)aclInstance->next;
+    }    
+
+    return ret;
+}
+
+bool get_acc_ctrl_right(lwm2m_context_t * contextP, lwm2m_uri_t * uriP, uint16_t serverID, uint8_t acl_operation)
+{
+    bool ret = false;
+    uint16_t  server_instance_number = 0;
+
+    lwm2m_object_t* accCtrlObjP = (lwm2m_object_t *)LWM2M_LIST_FIND(contextP->objectList, LWM2M_ACL_OBJECT_ID);
+    lwm2m_object_t* serverObjP = (lwm2m_object_t *)LWM2M_LIST_FIND(contextP->objectList, LWM2M_SERVER_OBJECT_ID);
+    
+    server_instance_number = LWM2M_LIST_COUNT(serverObjP->instanceList);
+
+    if ((server_instance_number == 1) && (!forceAcl))
+    {
+        fprintf(stdout, "\t\t debug: only one server found - server_instance_count %u\r\n", server_instance_number);
+        /* Give all permissions if the only one server account present */
+        ret = true;
+    }
+    else
+    {
+        fprintf(stdout, "\t\t debug: request: objID %u, objectId %u, instanceId %u, servertID %u, acl_operation %u\r\n", 
+                           accCtrlObjP->objID, uriP->objectId, uriP->instanceId, serverID, acl_operation);
+        /* Check ACL with priority: server ACL instance -> server owner -> default ACL instance */
+        ret = prv_check_acc_ctrl_right(accCtrlObjP, uriP->objectId, uriP->instanceId, serverID, acl_operation);
+    }
+
+    fprintf(stdout, "\t\t\t\t debug: operation 0x%X - access granted: %s\r\n", acl_operation, ret ? "True" : "False");
+
+    return ret;
+}
+

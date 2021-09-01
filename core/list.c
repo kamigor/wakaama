@@ -123,3 +123,16 @@ void lwm2m_list_free(lwm2m_list_t * head)
         lwm2m_list_free(nextP);
     }
 }
+
+uint16_t lwm2m_list_count(lwm2m_list_t * head)
+{
+    uint16_t count_instances = 0;
+
+    while (NULL != head)
+    {
+        count_instances++;
+        head = head->next;
+    }
+
+    return count_instances;
+}
