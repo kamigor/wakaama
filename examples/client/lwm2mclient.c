@@ -1232,7 +1232,7 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Failed to create Access Control object\r\n");
         return -1;
     }
-    else if (acc_ctrl_obj_add_inst(objArray[8], instId, 31024, 10, 65535)==false)
+    else if (acc_ctrl_obj_add_inst(objArray[8], instId, 31024, 65535, 65535)==false)
     {
         fprintf(stderr, "Failed to create Access Control object instance\r\n");
         return -1;

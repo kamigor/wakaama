@@ -195,8 +195,6 @@ uint8_t dm_handleRequest(lwm2m_context_t * contextP,
         return COAP_IGNORE;
     }
 
-    // TODO: check ACL
-
     switch (message->code)
     {
     case COAP_GET:
@@ -295,15 +293,39 @@ uint8_t dm_handleRequest(lwm2m_context_t * contextP,
             {
                 if (!LWM2M_URI_IS_SET_INSTANCE(uriP))
                 {
-                    result = object_raw_block1_create(contextP, uriP, format, message->payload, message->payload_len, message->block1_num, message->block1_more);
+                    /* ACL procedure: CREATE method */
+                    if (!get_acc_ctrl_right(contextP, uriP, serverP->shortID, ACL_FLAG_CREATE))
+                    {
+                        result = COAP_401_UNAUTHORIZED;
+                    }
+                    else
+                    {
+                        result = object_raw_block1_create(contextP, uriP, format, message->payload, message->payload_len, message->block1_num, message->block1_more);
+                    }
                 }
                 else if (!LWM2M_URI_IS_SET_RESOURCE(uriP))
                 {
-                    result = object_raw_block1_write(contextP, uriP, format, message->payload, message->payload_len, message->block1_num, message->block1_more);
+                    /* ACL procedure: WRITE method */
+                    if (!get_acc_ctrl_right(contextP, uriP, serverP->shortID, ACL_FLAG_WRITE))
+                    {
+                        result = COAP_401_UNAUTHORIZED;
+                    }
+                    else
+                    {
+                        result = object_raw_block1_write(contextP, uriP, format, message->payload, message->payload_len, message->block1_num, message->block1_more);
+                    }
                 }
                 else
                 {
-                    result = object_raw_block1_execute(contextP, uriP, message->payload, message->payload_len, message->block1_num, message->block1_more);
+                    /* ACL procedure: EXECUTE method */
+                    if (!get_acc_ctrl_right(contextP, uriP, serverP->shortID, ACL_FLAG_EXECUTE))
+                    {
+                        result = COAP_401_UNAUTHORIZED;
+                    }
+                    else
+                    {
+                        result = object_raw_block1_execute(contextP, uriP, message->payload, message->payload_len, message->block1_num, message->block1_more);
+                    }
                 }
                 break;
             }
@@ -311,7 +333,7 @@ uint8_t dm_handleRequest(lwm2m_context_t * contextP,
             if (!LWM2M_URI_IS_SET_INSTANCE(uriP))
             {
                 
-                /* ACL procedure: EXECUTE method */
+                /* ACL procedure: CREATE method */
                 if (!get_acc_ctrl_right(contextP, uriP, serverP->shortID, ACL_FLAG_CREATE))
                 {
                     result = COAP_401_UNAUTHORIZED;
@@ -319,6 +341,7 @@ uint8_t dm_handleRequest(lwm2m_context_t * contextP,
                 }
 
                 result = object_create(contextP, uriP, format, message->payload, message->payload_len);
+                
                 if (result == COAP_201_CREATED)
                 {
                     //longest uri is /65535/65535 = 12 + 1 (null) chars
@@ -359,10 +382,8 @@ uint8_t dm_handleRequest(lwm2m_context_t * contextP,
                         result = COAP_401_UNAUTHORIZED;
                         break;
                     }
-                    else
-                    {
-                        result = object_execute(contextP, uriP, message->payload, message->payload_len);
-                    }
+                    
+                    result = object_execute(contextP, uriP, message->payload, message->payload_len);
                 }
             }
             else
@@ -373,10 +394,8 @@ uint8_t dm_handleRequest(lwm2m_context_t * contextP,
                     result = COAP_401_UNAUTHORIZED;
                     break;
                 }
-                else
-                {
-                    result = object_write(contextP, uriP, format, message->payload, message->payload_len, true);
-                }
+                
+                result = object_write(contextP, uriP, format, message->payload, message->payload_len, true);
             }
         }
         break;

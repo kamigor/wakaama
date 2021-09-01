@@ -657,6 +657,7 @@ static bool prv_check_acc_ctrl_right(lwm2m_object_t* accCtrlObjP, uint16_t objec
 
         /* 8.2.1. Obtaining Access Right. For CREATE operation... */
         if (acl_operation & ACL_FLAG_EXECUTE)
+        // TODO: 8.1.2. Access Control Object Management    
         {
             if ((aclInstance->objectId == objectId) && (aclInstance->objectInstId == 65535))
             {
@@ -675,10 +676,8 @@ static bool prv_check_acc_ctrl_right(lwm2m_object_t* accCtrlObjP, uint16_t objec
                     aclAclInstance = (acc_ctrl_ri_t *)aclAclInstance->next;
                 }
 
-                if (ret)
-                {
-                    break;
-                }            
+            if (ret) {break;}
+
             }
         }
 
@@ -708,22 +707,20 @@ static bool prv_check_acc_ctrl_right(lwm2m_object_t* accCtrlObjP, uint16_t objec
             if (!ret)
             {
 
-                /* Check the owner resource contains the server id if no ACL resource instance record */
-                if (aclInstance->accCtrlOwner == serverId) // add after debugging - || is_default_right)
+                /* Check the owner resource contains the serverId if no ACL resource instance record or apply the default right if any */
+                if ((aclInstance->accCtrlOwner == serverId) || is_default_right)
                 {
-                    fprintf(stdout, "\t\t\t\t debug: accCtrlOwner %u for serverId %u found\r\n", aclInstance->accCtrlOwner, serverId);
+                    if (is_default_right)
+                    {
+                        fprintf(stdout, "\t\t\t\t debug: default right 0x%X found\r\n", acl_operation);
+                    }
+                    else
+                    {
+                        fprintf(stdout, "\t\t\t\t debug: accCtrlOwner %u for serverId %u found\r\n", aclInstance->accCtrlOwner, serverId);
+                    }
                     ret = true;
                     break;
                 }
-
-                /* Apply the default right if found */
-                else if ((!ret) && is_default_right)
-                {
-                    fprintf(stdout, "\t\t\t\t debug: default right 0x%X found\r\n", acl_operation);
-                    ret = true;
-                    break;
-                }           
-
            }
         }
       
@@ -746,13 +743,15 @@ bool get_acc_ctrl_right(lwm2m_context_t * contextP, lwm2m_uri_t * uriP, uint16_t
     if ((server_instance_number == 1) && (!forceAcl))
     {
         fprintf(stdout, "\t\t debug: only one server found - server_instance_count %u\r\n", server_instance_number);
-        /* Give all permissions if the only one server account present */
+        
+        /* Give the permission if the only one server account present and force ACL flag is down */
         ret = true;
     }
     else
     {
         fprintf(stdout, "\t\t debug: request: objID %u, objectId %u, instanceId %u, servertID %u, acl_operation %u\r\n", 
                            accCtrlObjP->objID, uriP->objectId, uriP->instanceId, serverID, acl_operation);
+        
         /* Check ACL with priority: server ACL instance -> server owner -> default ACL instance */
         ret = prv_check_acc_ctrl_right(accCtrlObjP, uriP->objectId, uriP->instanceId, serverID, acl_operation);
     }
