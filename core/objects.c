@@ -1234,3 +1234,16 @@ uint8_t object_writeInstance(lwm2m_context_t * contextP,
 }
 
 #endif
+
+bool object_getAclRight(lwm2m_context_t * contextP, 
+                            lwm2m_uri_t * uriP, 
+                            uint16_t shortID, 
+                            uint8_t acl_operation)
+{
+    LOG_URI(uriP);
+    lwm2m_object_t* targetP = (lwm2m_object_t *)LWM2M_LIST_FIND(contextP->objectList, LWM2M_ACL_OBJECT_ID);
+    
+    if ((NULL == targetP) || (NULL == targetP->writeFunc)) return 1;
+
+    return targetP->aclFunc(contextP, uriP, shortID, acl_operation);
+}

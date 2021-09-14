@@ -524,6 +524,124 @@ static uint8_t prv_create(lwm2m_context_t *contextP, uint16_t objInstId, int num
     return result;
 }
 
+static bool prv_check_acc_ctrl_right(lwm2m_object_t* accCtrlObjP, uint16_t objectId, uint16_t objectInstId, 
+                                        uint16_t serverId, uint8_t acl_operation)
+{
+    acc_ctrl_oi_t * aclInstance = (acc_ctrl_oi_t *)accCtrlObjP->instanceList;
+    acc_ctrl_ri_t * aclAclInstance;
+
+    bool ret = false;
+    bool is_default_right = false;
+
+    while (aclInstance != NULL)
+    {
+
+        /* 8.2.1. Obtaining Access Right. For CREATE operation... */
+        if (acl_operation & ACL_FLAG_EXECUTE)
+        // TODO: 8.1.2. Access Control Object Management    
+        {
+            if ((aclInstance->objectId == objectId) && (aclInstance->objectInstId == 65535))
+            {
+
+                aclAclInstance = (acc_ctrl_ri_t *)aclInstance->accCtrlValList;
+                while (aclAclInstance != NULL)
+                {
+                    /* Check the operation right in case ACL resource instance contains the server id record */
+                    if ((aclAclInstance->resInstId == serverId) && (aclAclInstance->accCtrlValue & acl_operation))
+                    {
+                        fprintf(stdout, "\t\t\t\t debug: right 0x%X for serverId %u found \r\n", acl_operation, serverId);
+                        ret = true;
+                        break;
+                    }
+
+                    aclAclInstance = (acc_ctrl_ri_t *)aclAclInstance->next;
+                }
+
+            if (ret) {break;}
+
+            }
+        }
+
+        /* 8.2.1. Obtaining Access Right. For operations, except the "Create" operation... */
+        if ((aclInstance->objectId == objectId) && (aclInstance->objectInstId == objectInstId))
+        {
+
+            aclAclInstance = (acc_ctrl_ri_t *)aclInstance->accCtrlValList;
+            while (aclAclInstance != NULL)
+            {
+                /* Check the operation right in case ACL resource instance contains the server id record */
+                if ((aclAclInstance->resInstId == serverId) && (aclAclInstance->accCtrlValue & acl_operation))
+                {
+                    fprintf(stdout, "\t\t\t\t debug: right 0x%X for serverId %u found \r\n", acl_operation, serverId);
+                    ret = true;
+                    break;
+                }
+                /* Check the operation right in case ACL resource instance contains '0' server id record */
+                if ((aclAclInstance->resInstId == 0) && (aclAclInstance->accCtrlValue & acl_operation))
+                {
+                    is_default_right = true;
+                }
+
+                aclAclInstance = (acc_ctrl_ri_t *)aclAclInstance->next;
+            }
+
+            if (!ret)
+            {
+
+                /* Check the owner resource contains the serverId if no ACL resource instance record or apply the default right if any */
+                if ((aclInstance->accCtrlOwner == serverId) || is_default_right)
+                {
+                    if (is_default_right)
+                    {
+                        fprintf(stdout, "\t\t\t\t debug: default right 0x%X found\r\n", acl_operation);
+                    }
+                    else
+                    {
+                        fprintf(stdout, "\t\t\t\t debug: accCtrlOwner %u for serverId %u found\r\n", aclInstance->accCtrlOwner, serverId);
+                    }
+                    ret = true;
+                    break;
+                }
+           }
+        }
+      
+        aclInstance = (acc_ctrl_oi_t *)aclInstance->next;
+    }    
+
+    return ret;
+}
+
+bool prv_acl(lwm2m_context_t * contextP, lwm2m_uri_t * uriP, uint16_t serverID, uint8_t acl_operation)
+{
+    bool ret = false;
+    uint16_t  server_instance_number = 0;
+
+    lwm2m_object_t* accCtrlObjP = (lwm2m_object_t *)LWM2M_LIST_FIND(contextP->objectList, LWM2M_ACL_OBJECT_ID);
+    lwm2m_object_t* serverObjP = (lwm2m_object_t *)LWM2M_LIST_FIND(contextP->objectList, LWM2M_SERVER_OBJECT_ID);
+    
+    server_instance_number = LWM2M_LIST_COUNT(serverObjP->instanceList);
+
+    if ((server_instance_number == 1) && (!forceAcl))
+    {
+        fprintf(stdout, "\t\t debug: only one server found - server_instance_count %u\r\n", server_instance_number);
+        
+        /* Give the permission if the only one server account present and force ACL flag is down */
+        ret = true;
+    }
+    else
+    {
+        fprintf(stdout, "\t\t debug: request: objID %u, objectId %u, instanceId %u, servertID %u, acl_operation %u\r\n", 
+                           accCtrlObjP->objID, uriP->objectId, uriP->instanceId, serverID, acl_operation);
+        
+        /* Check ACL with priority: server ACL instance -> server owner -> default ACL instance */
+        ret = prv_check_acc_ctrl_right(accCtrlObjP, uriP->objectId, uriP->instanceId, serverID, acl_operation);
+    }
+
+    fprintf(stdout, "\t\t\t\t debug: operation 0x%X - access granted: %s\r\n", acl_operation, ret ? "True" : "False");
+
+    return ret;
+}
+
 /*
  * Create an empty multiple instance LWM2M Object: Access Control
  */
@@ -550,6 +668,7 @@ lwm2m_object_t * acc_ctrl_create_object(void)
         accCtrlObj->writeFunc   = prv_write;
         accCtrlObj->createFunc  = prv_create;
         accCtrlObj->deleteFunc  = prv_delete;
+        accCtrlObj->aclFunc     = get_acl;
     }
     return accCtrlObj;
 }
@@ -643,121 +762,5 @@ void display_acc_ctrl_object(lwm2m_object_t * accCtrlObjP)
     }
 }
 
-static bool prv_check_acc_ctrl_right(lwm2m_object_t* accCtrlObjP, uint16_t objectId, uint16_t objectInstId, 
-                                        uint16_t serverId, uint8_t acl_operation)
-{
-    acc_ctrl_oi_t * aclInstance = (acc_ctrl_oi_t *)accCtrlObjP->instanceList;
-    acc_ctrl_ri_t * aclAclInstance;
 
-    bool ret = false;
-    bool is_default_right = false;
-
-    while (aclInstance != NULL)
-    {
-
-        /* 8.2.1. Obtaining Access Right. For CREATE operation... */
-        if (acl_operation & ACL_FLAG_EXECUTE)
-        // TODO: 8.1.2. Access Control Object Management    
-        {
-            if ((aclInstance->objectId == objectId) && (aclInstance->objectInstId == 65535))
-            {
-
-                aclAclInstance = (acc_ctrl_ri_t *)aclInstance->accCtrlValList;
-                while (aclAclInstance != NULL)
-                {
-                    /* Check the operation right in case ACL resource instance contains the server id record */
-                    if ((aclAclInstance->resInstId == serverId) && (aclAclInstance->accCtrlValue & acl_operation))
-                    {
-                        fprintf(stdout, "\t\t\t\t debug: right 0x%X for serverId %u found \r\n", acl_operation, serverId);
-                        ret = true;
-                        break;
-                    }
-
-                    aclAclInstance = (acc_ctrl_ri_t *)aclAclInstance->next;
-                }
-
-            if (ret) {break;}
-
-            }
-        }
-
-        /* 8.2.1. Obtaining Access Right. For operations, except the "Create" operation... */
-        if ((aclInstance->objectId == objectId) && (aclInstance->objectInstId == objectInstId))
-        {
-
-            aclAclInstance = (acc_ctrl_ri_t *)aclInstance->accCtrlValList;
-            while (aclAclInstance != NULL)
-            {
-                /* Check the operation right in case ACL resource instance contains the server id record */
-                if ((aclAclInstance->resInstId == serverId) && (aclAclInstance->accCtrlValue & acl_operation))
-                {
-                    fprintf(stdout, "\t\t\t\t debug: right 0x%X for serverId %u found \r\n", acl_operation, serverId);
-                    ret = true;
-                    break;
-                }
-                /* Check the operation right in case ACL resource instance contains '0' server id record */
-                if ((aclAclInstance->resInstId == 0) && (aclAclInstance->accCtrlValue & acl_operation))
-                {
-                    is_default_right = true;
-                }
-
-                aclAclInstance = (acc_ctrl_ri_t *)aclAclInstance->next;
-            }
-
-            if (!ret)
-            {
-
-                /* Check the owner resource contains the serverId if no ACL resource instance record or apply the default right if any */
-                if ((aclInstance->accCtrlOwner == serverId) || is_default_right)
-                {
-                    if (is_default_right)
-                    {
-                        fprintf(stdout, "\t\t\t\t debug: default right 0x%X found\r\n", acl_operation);
-                    }
-                    else
-                    {
-                        fprintf(stdout, "\t\t\t\t debug: accCtrlOwner %u for serverId %u found\r\n", aclInstance->accCtrlOwner, serverId);
-                    }
-                    ret = true;
-                    break;
-                }
-           }
-        }
-      
-        aclInstance = (acc_ctrl_oi_t *)aclInstance->next;
-    }    
-
-    return ret;
-}
-
-bool get_acc_ctrl_right(lwm2m_context_t * contextP, lwm2m_uri_t * uriP, uint16_t serverID, uint8_t acl_operation)
-{
-    bool ret = false;
-    uint16_t  server_instance_number = 0;
-
-    lwm2m_object_t* accCtrlObjP = (lwm2m_object_t *)LWM2M_LIST_FIND(contextP->objectList, LWM2M_ACL_OBJECT_ID);
-    lwm2m_object_t* serverObjP = (lwm2m_object_t *)LWM2M_LIST_FIND(contextP->objectList, LWM2M_SERVER_OBJECT_ID);
-    
-    server_instance_number = LWM2M_LIST_COUNT(serverObjP->instanceList);
-
-    if ((server_instance_number == 1) && (!forceAcl))
-    {
-        fprintf(stdout, "\t\t debug: only one server found - server_instance_count %u\r\n", server_instance_number);
-        
-        /* Give the permission if the only one server account present and force ACL flag is down */
-        ret = true;
-    }
-    else
-    {
-        fprintf(stdout, "\t\t debug: request: objID %u, objectId %u, instanceId %u, servertID %u, acl_operation %u\r\n", 
-                           accCtrlObjP->objID, uriP->objectId, uriP->instanceId, serverID, acl_operation);
-        
-        /* Check ACL with priority: server ACL instance -> server owner -> default ACL instance */
-        ret = prv_check_acc_ctrl_right(accCtrlObjP, uriP->objectId, uriP->instanceId, serverID, acl_operation);
-    }
-
-    fprintf(stdout, "\t\t\t\t debug: operation 0x%X - access granted: %s\r\n", acl_operation, ret ? "True" : "False");
-
-    return ret;
-}
 

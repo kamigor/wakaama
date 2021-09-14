@@ -52,7 +52,6 @@
 #include "internals.h"
 #include <stdio.h>
 
-extern bool get_acc_ctrl_right(lwm2m_context_t * contextP, lwm2m_uri_t * uriP, uint16_t shortID, uint8_t acl_operation);
 
 #ifdef LWM2M_CLIENT_MODE
 static int prv_readAttributes(multi_option_t * query,
@@ -204,7 +203,7 @@ uint8_t dm_handleRequest(lwm2m_context_t * contextP,
             int res;
             
             /* ACL procedure: READ, DISCOVER, OBSERVE, OBSERVE-CANCELATION method */
-            if (!get_acc_ctrl_right(contextP, uriP, serverP->shortID, ACL_FLAG_READ))
+            if (!object_getAclRight(contextP, uriP, serverP->shortID, ACL_FLAG_READ))
             {
                 result = COAP_401_UNAUTHORIZED;
                 break;
@@ -294,7 +293,7 @@ uint8_t dm_handleRequest(lwm2m_context_t * contextP,
                 if (!LWM2M_URI_IS_SET_INSTANCE(uriP))
                 {
                     /* ACL procedure: CREATE method */
-                    if (!get_acc_ctrl_right(contextP, uriP, serverP->shortID, ACL_FLAG_CREATE))
+                    if (!object_getAclRight(contextP, uriP, serverP->shortID, ACL_FLAG_CREATE))
                     {
                         result = COAP_401_UNAUTHORIZED;
                     }
@@ -306,7 +305,7 @@ uint8_t dm_handleRequest(lwm2m_context_t * contextP,
                 else if (!LWM2M_URI_IS_SET_RESOURCE(uriP))
                 {
                     /* ACL procedure: WRITE method */
-                    if (!get_acc_ctrl_right(contextP, uriP, serverP->shortID, ACL_FLAG_WRITE))
+                    if (!object_getAclRight(contextP, uriP, serverP->shortID, ACL_FLAG_WRITE))
                     {
                         result = COAP_401_UNAUTHORIZED;
                     }
@@ -318,7 +317,7 @@ uint8_t dm_handleRequest(lwm2m_context_t * contextP,
                 else
                 {
                     /* ACL procedure: EXECUTE method */
-                    if (!get_acc_ctrl_right(contextP, uriP, serverP->shortID, ACL_FLAG_EXECUTE))
+                    if (!object_getAclRight(contextP, uriP, serverP->shortID, ACL_FLAG_EXECUTE))
                     {
                         result = COAP_401_UNAUTHORIZED;
                     }
@@ -334,7 +333,7 @@ uint8_t dm_handleRequest(lwm2m_context_t * contextP,
             {
                 
                 /* ACL procedure: CREATE method */
-                if (!get_acc_ctrl_right(contextP, uriP, serverP->shortID, ACL_FLAG_CREATE))
+                if (!object_getAclRight(contextP, uriP, serverP->shortID, ACL_FLAG_CREATE))
                 {
                     result = COAP_401_UNAUTHORIZED;
                     break;
@@ -377,7 +376,7 @@ uint8_t dm_handleRequest(lwm2m_context_t * contextP,
                 else
                 {
                     /* ACL procedure: EXECUTE method */
-                    if (!get_acc_ctrl_right(contextP, uriP, serverP->shortID, ACL_FLAG_EXECUTE))
+                    if (!object_getAclRight(contextP, uriP, serverP->shortID, ACL_FLAG_EXECUTE))
                     {
                         result = COAP_401_UNAUTHORIZED;
                         break;
@@ -389,7 +388,7 @@ uint8_t dm_handleRequest(lwm2m_context_t * contextP,
             else
             {
                 /* ACL procedure WRITE method */
-                if (!get_acc_ctrl_right(contextP, uriP, serverP->shortID, ACL_FLAG_WRITE))
+                if (!object_getAclRight(contextP, uriP, serverP->shortID, ACL_FLAG_WRITE))
                 {
                     result = COAP_401_UNAUTHORIZED;
                     break;
@@ -403,7 +402,7 @@ uint8_t dm_handleRequest(lwm2m_context_t * contextP,
     case COAP_PUT:
         {
             /* ACL procedure: WRITE, Write-Attributes methods */
-            if (!get_acc_ctrl_right(contextP, uriP, serverP->shortID, ACL_FLAG_WRITE))
+            if (!object_getAclRight(contextP, uriP, serverP->shortID, ACL_FLAG_WRITE))
             {
                 result = COAP_401_UNAUTHORIZED;
                 break;
@@ -443,7 +442,7 @@ uint8_t dm_handleRequest(lwm2m_context_t * contextP,
     case COAP_DELETE:
         {
             /* ACL procedure: DELETE method */
-            if (!get_acc_ctrl_right(contextP, uriP, serverP->shortID, ACL_FLAG_DELETE))
+            if (!object_getAclRight(contextP, uriP, serverP->shortID, ACL_FLAG_DELETE))
             {
                 result = COAP_401_UNAUTHORIZED;
                 break;

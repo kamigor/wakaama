@@ -469,6 +469,7 @@ typedef uint8_t (*lwm2m_raw_block1_write_callback_t) (lwm2m_context_t * contextP
 typedef uint8_t (*lwm2m_raw_block1_execute_callback_t) (lwm2m_context_t * contextP, lwm2m_uri_t * uriP, uint8_t * buffer, int length, lwm2m_object_t * objectP, uint32_t block_num, uint8_t block_more);
 #endif
 typedef uint8_t (*lwm2m_delete_callback_t) (lwm2m_context_t * contextP, uint16_t instanceId, lwm2m_object_t * objectP);
+typedef bool (*lwm2m_acl_callback_t) (lwm2m_context_t * contextP, lwm2m_uri_t * uriP, uint16_t shortID, uint8_t acl_operation);
 
 struct _lwm2m_object_t
 {
@@ -488,6 +489,7 @@ struct _lwm2m_object_t
 #endif
     lwm2m_delete_callback_t   deleteFunc;
     lwm2m_discover_callback_t discoverFunc;
+    lwm2m_acl_callback_t aclFunc;
     void * userData;
 };
 
@@ -652,7 +654,7 @@ typedef struct
     double      step;
 } lwm2m_attributes_t;
 
-
+/* ACL */
 #define ACL_FLAG_READ    (uint8_t)0x01
 #define ACL_FLAG_WRITE   (uint8_t)0x02
 #define ACL_FLAG_EXECUTE (uint8_t)0x04
