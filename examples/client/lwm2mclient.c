@@ -1225,7 +1225,6 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Failed to create Access Control ACL default resource\r\n");
         return -1;
     }
-    
     instId++;
     if (NULL == objArray[8])
     {
@@ -1237,7 +1236,7 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Failed to create Access Control object instance\r\n");
         return -1;
     }
-    else if (acc_ctrl_oi_add_ac_val(objArray[8], instId, serverId, 0x18 /* == 0b00000000011000 */)==false)
+    else if (acc_ctrl_oi_add_ac_val(objArray[8], instId, serverId, 0x1F /* == 0b00000000011111 */)==false)
     {
         fprintf(stderr, "Failed to create Access Control ACL for serverId: %u\r\n", serverId);
         return -1;
