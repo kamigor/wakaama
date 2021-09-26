@@ -194,8 +194,6 @@ uint8_t dm_handleRequest(lwm2m_context_t * contextP,
         return COAP_IGNORE;
     }
 
-    // TODO: check ACL
-
     switch (message->code)
     {
     case COAP_GET:
@@ -203,6 +201,10 @@ uint8_t dm_handleRequest(lwm2m_context_t * contextP,
             uint8_t * buffer = NULL;
             size_t length = 0;
             int res;
+
+            /* ACL authorization: READ, DISCOVER, OBSERVE, OBSERVE-CANCELATION operations */
+            result = object_getAclRight(contextP, uriP, serverP->shortID, ACL_FLAG_READ);
+            if (COAP_NO_ERROR != result) {break;} 
 
             if (IS_OPTION(message, COAP_OPTION_OBSERVE))
             {
@@ -287,21 +289,40 @@ uint8_t dm_handleRequest(lwm2m_context_t * contextP,
             {
                 if (!LWM2M_URI_IS_SET_INSTANCE(uriP))
                 {
-                    result = object_raw_block1_create(contextP, uriP, format, message->payload, message->payload_len, message->block1_num, message->block1_more);
+                    /* ACL authorization: CREATE operation */
+                    result = object_getAclRight(contextP, uriP, serverP->shortID, ACL_FLAG_CREATE);
+                    if (COAP_NO_ERROR == result)
+                    {
+                        result = object_raw_block1_create(contextP, uriP, format, message->payload, message->payload_len, message->block1_num, message->block1_more);
+                    }
                 }
                 else if (!LWM2M_URI_IS_SET_RESOURCE(uriP))
                 {
-                    result = object_raw_block1_write(contextP, uriP, format, message->payload, message->payload_len, message->block1_num, message->block1_more);
+                    /* ACL authorization: WRITE operation */
+                    result = object_getAclRight(contextP, uriP, serverP->shortID, ACL_FLAG_WRITE);
+                    if (COAP_NO_ERROR == result)
+                    {
+                        result = object_raw_block1_write(contextP, uriP, format, message->payload, message->payload_len, message->block1_num, message->block1_more);
+                    }
                 }
                 else
                 {
-                    result = object_raw_block1_execute(contextP, uriP, message->payload, message->payload_len, message->block1_num, message->block1_more);
+                     /* ACL authorization: EXECUTE operation */
+                    result = object_getAclRight(contextP, uriP, serverP->shortID, ACL_FLAG_EXECUTE);
+                    if (COAP_NO_ERROR == result)
+                    {
+                        result = object_raw_block1_execute(contextP, uriP, message->payload, message->payload_len, message->block1_num, message->block1_more);
+                    }
                 }
                 break;
             }
 #endif
             if (!LWM2M_URI_IS_SET_INSTANCE(uriP))
             {
+                /* ACL authorization: CREATE operation */
+                result = object_getAclRight(contextP, uriP, serverP->shortID, ACL_FLAG_CREATE);
+                if (COAP_NO_ERROR != result) {break;} 
+
                 result = object_create(contextP, uriP, format, message->payload, message->payload_len);
                 if (result == COAP_201_CREATED)
                 {
@@ -337,11 +358,19 @@ uint8_t dm_handleRequest(lwm2m_context_t * contextP,
                 }
                 else
                 {
+                    /* ACL authorization: EXECUTE operation */
+                    result = object_getAclRight(contextP, uriP, serverP->shortID, ACL_FLAG_EXECUTE);
+                    if (COAP_NO_ERROR != result) {break;} 
+
                     result = object_execute(contextP, uriP, message->payload, message->payload_len);
                 }
             }
             else
             {
+                /* ACL authorization: WRITE operation */
+                result = object_getAclRight(contextP, uriP, serverP->shortID, ACL_FLAG_WRITE);
+                if (COAP_NO_ERROR != result) {break;} 
+    
                 result = object_write(contextP, uriP, format, message->payload, message->payload_len, true);
             }
         }
@@ -349,6 +378,10 @@ uint8_t dm_handleRequest(lwm2m_context_t * contextP,
 
     case COAP_PUT:
         {
+            /* ACL authorization: WRITE, Write-Attributes operations */
+            result = object_getAclRight(contextP, uriP, serverP->shortID, ACL_FLAG_WRITE);
+            if (COAP_NO_ERROR != result) {break;} 
+
 #ifdef LWM2M_RAW_BLOCK1_REQUESTS
             if (IS_OPTION(message, COAP_OPTION_BLOCK1))
             {
@@ -382,6 +415,10 @@ uint8_t dm_handleRequest(lwm2m_context_t * contextP,
 
     case COAP_DELETE:
         {
+            /* ACL authorization: DELETE operation */
+            result = object_getAclRight(contextP, uriP, serverP->shortID, ACL_FLAG_DELETE);
+            if (COAP_NO_ERROR != result) {break;} 
+ 
             if (!LWM2M_URI_IS_SET_INSTANCE(uriP) || LWM2M_URI_IS_SET_RESOURCE(uriP))
             {
                 result = COAP_400_BAD_REQUEST;

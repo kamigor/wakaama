@@ -320,6 +320,7 @@ int object_getRegisterPayload(lwm2m_context_t * contextP, uint8_t * buffer, size
 int object_getServers(lwm2m_context_t * contextP, bool checkOnly);
 uint8_t object_createInstance(lwm2m_context_t * contextP, lwm2m_uri_t * uriP, lwm2m_data_t * dataP);
 uint8_t object_writeInstance(lwm2m_context_t * contextP, lwm2m_uri_t * uriP, lwm2m_data_t * dataP);
+uint8_t object_getAclRight(lwm2m_context_t * contextP, lwm2m_uri_t * uriP, uint16_t shortID, uint8_t acl_operation);
 
 // defined in transaction.c
 lwm2m_transaction_t * transaction_new(void * sessionH, coap_method_t method, char * altPath, lwm2m_uri_t * uriP, uint16_t mID, uint8_t token_len, uint8_t* token);

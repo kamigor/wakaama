@@ -693,6 +693,7 @@ static void prv_display_objects(lwm2m_context_t * lwm2mH,
                 display_server_object(object);
                 break;
             case LWM2M_ACL_OBJECT_ID:
+                display_acc_ctrl_object(object);
                 break;
             case LWM2M_DEVICE_OBJECT_ID:
                 display_device_object(object);
@@ -1201,6 +1202,7 @@ int main(int argc, char *argv[])
         fprintf(stderr, "lwm2m_configure() failed: 0x%X\r\n", result);
         return -1;
     }
+    lwm2m_set_acl_callback(lwm2mH, get_acc_ctrl_right);
 
     signal(SIGINT, handle_sigint);
 

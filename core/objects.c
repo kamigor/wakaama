@@ -1234,3 +1234,41 @@ uint8_t object_writeInstance(lwm2m_context_t * contextP,
 }
 
 #endif
+
+void lwm2m_set_acl_callback(lwm2m_context_t * contextP, lwm2m_acl_callback_t callback)
+{
+    LOG("Entering");
+    contextP->aclCallback = callback;
+}
+
+uint8_t object_getAclRight(lwm2m_context_t * contextP, 
+                            lwm2m_uri_t * uriP, 
+                            uint16_t shortID, 
+                            uint8_t acl_operation)
+{
+    LOG_URI(uriP);
+
+
+    lwm2m_object_t* serverObjP = (lwm2m_object_t *)LWM2M_LIST_FIND(contextP->objectList, LWM2M_SERVER_OBJECT_ID);
+    uint16_t server_instance_number = LWM2M_LIST_COUNT(serverObjP->instanceList);
+
+    if (server_instance_number == 1)
+    {
+        /* Obtain the permission if the only server account exists */
+        return COAP_NO_ERROR;
+    }
+
+    if (NULL == contextP->aclCallback) 
+    {
+        return COAP_405_METHOD_NOT_ALLOWED;
+    }
+
+    if (contextP->aclCallback(contextP, uriP, shortID, acl_operation))
+    {
+        return COAP_NO_ERROR;
+    }
+    else
+    {
+        return COAP_401_UNAUTHORIZED;
+    }
+}
