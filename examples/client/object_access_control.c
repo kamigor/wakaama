@@ -617,3 +617,172 @@ bool acc_ctrl_oi_add_ac_val (lwm2m_object_t* accCtrlObjP, uint16_t instId,
 
     return prv_add_ac_val (accCtrlOiP, acResId, acValue);
 }
+
+void display_acc_ctrl_object(lwm2m_object_t * accCtrlObjP)
+{
+    acc_ctrl_oi_t * aclInstanceP = NULL;
+    acc_ctrl_ri_t * aclResInstanceP = NULL;
+    
+    fprintf(stdout, "  /%u: ACL object, instances:\r\n", accCtrlObjP->objID);
+    aclInstanceP = (acc_ctrl_oi_t *)accCtrlObjP->instanceList;
+    
+    while (NULL != aclInstanceP)
+    {
+        
+        fprintf(stdout, "    /%u/%u: object id: %u, instance id: %u, owner: %u, acl: [", 
+            accCtrlObjP->objID, aclInstanceP->objInstId, 
+            aclInstanceP->objectId, aclInstanceP->objectInstId, aclInstanceP->accCtrlOwner);
+        
+        aclResInstanceP = (acc_ctrl_ri_t *)aclInstanceP->accCtrlValList;
+        while (aclResInstanceP != NULL)
+        {
+            fprintf(stdout, " server id: %u - right: 0x%X, ", 
+                    aclResInstanceP->resInstId, aclResInstanceP->accCtrlValue);
+            aclResInstanceP = (acc_ctrl_ri_t *)aclResInstanceP->next;
+        }
+
+        fprintf(stdout, "]\r\n");
+        aclInstanceP = (acc_ctrl_oi_t *)aclInstanceP->next;
+    }
+}
+
+static acc_ctrl_oi_t* prv_find_acl_ctrl_instance(lwm2m_object_t * accCtrlObjP, 
+                                                 uint16_t objectId, uint16_t objectInstId)
+{
+    acc_ctrl_oi_t* targetP = NULL;
+
+    targetP = (acc_ctrl_oi_t*)accCtrlObjP->instanceList;
+    while (NULL != targetP)
+    {
+        if ((targetP->objectId == objectId) && (targetP->objectInstId == objectInstId))
+        {
+            break;
+        }
+        targetP = targetP->next;
+    }
+
+    return targetP;
+}
+
+static bool prv_check_acc_ctrl_right(lwm2m_object_t* accCtrlObjP, uint16_t objectId, 
+                                     uint16_t objectInstId, uint16_t serverId, uint8_t acl_operation)
+{
+    acc_ctrl_oi_t * aclInstanceP = NULL;
+    acc_ctrl_ri_t * aclResInstanceP = NULL;
+    bool is_default_right = false;
+    bool ret = false;
+
+    aclInstanceP = (acc_ctrl_oi_t *) prv_find_acl_ctrl_instance(accCtrlObjP, objectId, objectInstId);
+
+    if (NULL != aclInstanceP)
+    {
+        aclResInstanceP = (acc_ctrl_ri_t *)aclInstanceP->accCtrlValList;
+        while (aclResInstanceP != NULL)
+        {
+            /* Obtain the permission in case the ACL resource contains the serverId record */
+            if ((aclResInstanceP->resInstId == serverId) && (aclResInstanceP->accCtrlValue & acl_operation))
+            {
+                ret = true;
+                break;
+            }
+            /* Obtain the permission in case the ACL resource contains the default right: serverId = 0*/
+            if ((aclResInstanceP->resInstId == 0) && (aclResInstanceP->accCtrlValue & acl_operation))
+            {
+                is_default_right = true;
+            }
+            aclResInstanceP = (acc_ctrl_ri_t *)aclResInstanceP->next;
+        }
+
+        if (!ret)
+        {
+            /* Obtain the permission in case the owner resource contains the serverId
+               or apply the default right if exists */
+            if ((aclInstanceP->accCtrlOwner == serverId) || is_default_right)
+            {
+                ret = true;
+            }
+        }
+
+        /* Remove the corresponding ACL instance for the node if exists in response on DELETE operation */
+        if ((ret) && (ACL_FLAG_DELETE & acl_operation))
+        {
+            aclInstanceP = (acc_ctrl_oi_t *) prv_find_acl_ctrl_instance(accCtrlObjP, objectId, objectInstId);
+
+            if (NULL != aclInstanceP)
+            {
+                acc_ctrl_oi_t* targetP = NULL;
+                accCtrlObjP->instanceList = lwm2m_list_remove(accCtrlObjP->instanceList,
+                                                aclInstanceP->objInstId, (lwm2m_list_t**)&targetP);
+                if (NULL != targetP)
+                {
+                    LWM2M_LIST_FREE(targetP->accCtrlValList);
+                    lwm2m_free(targetP);
+                }
+           }
+        }
+    }
+    return ret;
+}
+
+static bool prv_check_acc_ctrl_create_right(lwm2m_object_t* accCtrlObjP, uint16_t objectId, 
+                                            uint16_t objectInstId, uint16_t serverId, uint8_t acl_operation)
+{
+    acc_ctrl_oi_t * aclInstanceP = NULL;
+    acc_ctrl_ri_t * aclResInstanceP = NULL;
+    uint16_t newAclInstanceId;
+    bool ret = false;
+ 
+    aclInstanceP = (acc_ctrl_oi_t *) prv_find_acl_ctrl_instance(accCtrlObjP, objectId, 65535);
+    if (NULL != aclInstanceP)
+    {
+        aclResInstanceP = (acc_ctrl_ri_t *) aclInstanceP->accCtrlValList;
+
+        while (aclResInstanceP != NULL)
+        {
+            /* Obtain the permission in case ACL resource instance contains the serverId record */
+            if ((aclResInstanceP->resInstId == serverId) && 
+                (aclResInstanceP->accCtrlValue & ACL_FLAG_CREATE))
+            {
+                ret = true;
+                break;
+            }
+
+            aclResInstanceP = (acc_ctrl_ri_t *) aclResInstanceP->next;
+        }
+    }
+
+    /* Create the corresponding ACL instance for the created object instance with serverID as the owner */
+    if (ret)
+    {
+        aclInstanceP = (acc_ctrl_oi_t*) prv_find_acl_ctrl_instance(accCtrlObjP, objectId, objectInstId);
+        if (NULL == aclInstanceP)
+        {
+            newAclInstanceId = lwm2m_list_newId(accCtrlObjP->instanceList);
+            acc_ctrl_obj_add_inst(accCtrlObjP, newAclInstanceId, objectId, objectInstId, serverId);
+        }
+    }
+
+    return ret;
+}
+
+bool get_acc_ctrl_right(lwm2m_context_t * contextP, lwm2m_uri_t * uriP, 
+                        uint16_t serverID, uint8_t acl_operation)
+{
+    bool ret = false;
+
+    lwm2m_object_t* accCtrlObjP = (lwm2m_object_t *)LWM2M_LIST_FIND(contextP->objectList, LWM2M_ACL_OBJECT_ID);
+
+    /* Check ACL with priority as folloeing: server ACL instance -> server owner -> default ACL instance */
+    if (ACL_FLAG_CREATE & acl_operation)
+    {
+        ret = prv_check_acc_ctrl_create_right(accCtrlObjP, uriP->objectId, 
+                                              uriP->instanceId, serverID, acl_operation);
+    }
+    else
+    {
+        ret = prv_check_acc_ctrl_right(accCtrlObjP, uriP->objectId, uriP->instanceId, 
+                                       serverID, acl_operation);
+    }
+
+    return ret;
+}
